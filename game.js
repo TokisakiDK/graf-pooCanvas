@@ -1,58 +1,71 @@
-// Canvas setup
+// Configuración inicial del Canvas y el Contexto
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
-// Clase Ball (Pelota)
+/** * Clase Ball: Gestiona las propiedades y el comportamiento de cada pelota 
+ */
 class Ball {
-    constructor(x, y, radius, speedX, speedY) {
-        this.x = x;
-        this.y = y;
-        this.radius = radius;
-        this.speedX = speedX;
-        this.speedY = speedY;
+    constructor(x, y, radius, speedX, speedY, color) {
+        this.x = x; // Posición horizontal
+        this.y = y; // Posición vertical
+        this.radius = radius; // Tamaño de la pelota
+        this.speedX = speedX; // Velocidad en eje X
+        this.speedY = speedY; // Velocidad en eje Y
+        this.color = color; // Color único
     }
 
+    // Dibuja la pelota en el canvas
     draw() {
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-        ctx.fillStyle = 'white';
+        ctx.fillStyle = this.color;
         ctx.fill();
+        ctx.shadowBlur = 10; // Efecto de brillo
+        ctx.shadowColor = this.color;
         ctx.closePath();
     }
 
+    // Actualiza la posición y detecta colisiones con bordes verticales (techo/suelo)
     move() {
         this.x += this.speedX;
         this.y += this.speedY;
 
-        // ColisiÃ³n con la parte superior e inferior
+        // Rebote en parte superior e inferior
         if (this.y - this.radius <= 0 || this.y + this.radius >= canvas.height) {
             this.speedY = -this.speedY;
         }
     }
 
+    // Reposiciona la pelota en el centro al marcar un punto
     reset() {
         this.x = canvas.width / 2;
         this.y = canvas.height / 2;
-        this.speedX = -this.speedX; // Cambia direcciÃ³n al resetear
+        this.speedX = -this.speedX; // Invierte dirección del saque
     }
 }
 
-// Clase Paddle (Paleta)
+/** * Clase Paddle: Gestiona las paletas del jugador y la IA 
+ */
 class Paddle {
-    constructor(x, y, width, height, isPlayerControlled = false) {
+    constructor(x, y, width, height, color) {
         this.x = x;
         this.y = y;
         this.width = width;
         this.height = height;
-        this.isPlayerControlled = isPlayerControlled;
-        this.speed = 5;
+        this.color = color;
+        this.speed = 8; // Velocidad de movimiento
     }
 
+    // Dibuja la paleta con estilo rectangular
     draw() {
-        ctx.fillStyle = 'white';
+        ctx.fillStyle = this.color;
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = this.color;
         ctx.fillRect(this.x, this.y, this.width, this.height);
+        ctx.shadowBlur = 0; // Reset de sombra para no afectar otros dibujos
     }
 
+    // Mueve la paleta asegurando que no se salga del canvas
     move(direction) {
         if (direction === 'up' && this.y > 0) {
             this.y -= this.speed;
@@ -61,85 +74,140 @@ class Paddle {
         }
     }
 
-    // Movimiento de la paleta automÃ¡tica (IA)
-    autoMove(ball) {
-        if (ball.y < this.y + this.height / 2) {
-            this.y -= this.speed;
-        } else if (ball.y > this.y + this.height / 2) {
-            this.y += this.speed;
-        }
+    // Lógica simple para que la CPU siga a la pelota más cercana en el eje Y
+    autoMove(balls) {
+        if (balls.length === 0) return;
+        // Encuentra la pelota que viene hacia la derecha (hacia la CPU)
+        let targetBall = balls.reduce((prev, curr) => (curr.x > prev.x ? curr : prev));
+        
+        let center = this.y + this.height / 2;
+        if (targetBall.y < center - 10) this.y -= this.speed - 2;
+        if (targetBall.y > center + 10) this.y += this.speed - 2;
     }
 }
 
-// Clase Game (Controla el juego)
+/** * Clase Game: Motor principal del juego 
+ */
 class Game {
     constructor() {
-        this.ball = new Ball(canvas.width / 2, canvas.height / 2, 10, 4, 4);
-        this.paddle1 = new Paddle(0, canvas.height / 2 - 50, 10, 100, true); // jugador
-        this.paddle2 = new Paddle(canvas.width - 10, canvas.height / 2 - 50, 10, 100); // CPU
-        this.keys = {}; // Para capturar las teclas
+        this.balls = [];
+        this.playerScore = 0;
+        this.cpuScore = 0;
+        this.keys = {}; // Registro de teclas presionadas
+        
+        // Inicializar 5 pelotas con valores aleatorios
+        this.initBalls(5);
+        
+        // Paleta Jugador: Altura 200 (doble de la estándar), color Verde Neón
+        this.paddle1 = new Paddle(10, canvas.height/2 - 100, 15, 200, '#39FF14'); 
+        // Paleta CPU: Altura 100, color Cian Neón
+        this.paddle2 = new Paddle(canvas.width - 25, canvas.height/2 - 50, 15, 100, '#00F3FF'); 
     }
 
+    // Genera pelotas con tamaños, velocidades y colores distintos
+    initBalls(count) {
+        const colors = ['#FF007F', '#FFD700', '#FF5733', '#BF00FF', '#FFFFFF'];
+        for (let i = 0; i < count; i++) {
+            let radius = Math.random() * 8 + 6; // Entre 6 y 14
+            let speedX = (Math.random() * 3 + 3) * (Math.random() > 0.5 ? 1 : -1);
+            let speedY = (Math.random() * 3 + 3) * (Math.random() > 0.5 ? 1 : -1);
+            this.balls.push(new Ball(canvas.width/2, canvas.height/2, radius, speedX, speedY, colors[i]));
+        }
+    }
+
+    // Dibuja el marcador en pantalla
+    drawScore() {
+        ctx.font = "bold 40px Courier New";
+        ctx.fillStyle = "white";
+        ctx.fillText(this.playerScore, canvas.width / 4, 50);
+        ctx.fillText(this.cpuScore, (canvas.width / 4) * 3, 50);
+    }
+
+    // Dibuja todos los elementos en cada frame
     draw() {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        this.ball.draw();
+        // Limpiar el fondo
+        ctx.fillStyle = "#1a1a1a";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Línea central decorativa
+        ctx.setLineDash([15, 15]);
+        ctx.strokeStyle = "rgba(255,255,255,0.2)";
+        ctx.beginPath();
+        ctx.moveTo(canvas.width/2, 0);
+        ctx.lineTo(canvas.width/2, canvas.height);
+        ctx.stroke();
+        ctx.setLineDash([]); // Reset de línea discontinua
+
+        this.drawScore();
+        this.balls.forEach(ball => ball.draw());
         this.paddle1.draw();
         this.paddle2.draw();
     }
 
+    // Actualiza la lógica de movimiento y colisiones
     update() {
-        this.ball.move();
+        // Movimiento de jugador
+        if (this.keys['ArrowUp']) this.paddle1.move('up');
+        if (this.keys['ArrowDown']) this.paddle1.move('down');
 
-        // Movimiento de la paleta 1 (Jugador) controlado por teclas
-        if (this.keys['ArrowUp']) {
-            this.paddle1.move('up');
-        }
-        if (this.keys['ArrowDown']) {
-            this.paddle1.move('down');
-        }
+        // Movimiento de CPU
+        this.paddle2.autoMove(this.balls);
 
-        // Movimiento de la paleta 2 (Controlada por IA)
-        this.paddle2.autoMove(this.ball);
+        this.balls.forEach(ball => {
+            ball.move();
 
-        // Colisiones con las paletas
-        if (this.ball.x - this.ball.radius <= this.paddle1.x + this.paddle1.width &&
-            this.ball.y >= this.paddle1.y && this.ball.y <= this.paddle1.y + this.paddle1.height) {
-            this.ball.speedX = -this.ball.speedX;
-        }
+            // Colisión con Paleta Jugador (Izquierda)
+            if (ball.x - ball.radius <= this.paddle1.x + this.paddle1.width &&
+                ball.y >= this.paddle1.y && ball.y <= this.paddle1.y + this.paddle1.height) {
+                ball.speedX = Math.abs(ball.speedX) * 1.05; // Aumenta velocidad gradualmente
+                ball.x = this.paddle1.x + this.paddle1.width + ball.radius; // Corregir posición
+            }
 
-        if (this.ball.x + this.ball.radius >= this.paddle2.x &&
-            this.ball.y >= this.paddle2.y && this.ball.y <= this.paddle2.y + this.paddle2.height) {
-            this.ball.speedX = -this.ball.speedX;
-        }
+            // Colisión con Paleta CPU (Derecha)
+            if (ball.x + ball.radius >= this.paddle2.x &&
+                ball.y >= this.paddle2.y && ball.y <= this.paddle2.y + this.paddle2.height) {
+                ball.speedX = -Math.abs(ball.speedX) * 1.05;
+                ball.x = this.paddle2.x - ball.radius;
+            }
 
-        // Detectar cuando la pelota sale de los bordes (punto marcado)
-        if (this.ball.x - this.ball.radius <= 0 || this.ball.x + this.ball.radius >= canvas.width) {
-            this.ball.reset();
-        }
+            // Detección de puntos
+            if (ball.x - ball.radius <= 0) {
+                this.cpuScore++; // Punto para CPU
+                ball.reset();
+            } else if (ball.x + ball.radius >= canvas.width) {
+                this.playerScore++; // Punto para Jugador
+                ball.reset();
+            }
+        });
     }
 
-    // Captura de teclas para el control de la paleta
+    // Configura los eventos de teclado
     handleInput() {
-        window.addEventListener('keydown', (event) => {
-            this.keys[event.key] = true;
+        window.addEventListener('keydown', (e) => {
+            // Evita que las flechas muevan el scroll de la página
+            if(["ArrowUp", "ArrowDown", " "].includes(e.key)) {
+                e.preventDefault();
+            }
+            this.keys[e.key] = true;
         });
 
-        window.addEventListener('keyup', (event) => {
-            this.keys[event.key] = false;
+        window.addEventListener('keyup', (e) => {
+            this.keys[e.key] = false;
         });
     }
 
+    // Bucle principal del juego
     run() {
         this.handleInput();
-        const gameLoop = () => {
+        const loop = () => {
             this.update();
             this.draw();
-            requestAnimationFrame(gameLoop);
+            requestAnimationFrame(loop);
         };
-        gameLoop();
+        loop();
     }
 }
 
-// Crear instancia del juego y ejecutarlo
+// Iniciar el juego
 const game = new Game();
 game.run();
